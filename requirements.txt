@@ -1,0 +1,8 @@
+opencv-python
+numpy
+mediapipe
+torch
+torchvision
+transformers
+pyttsx3  # For text-to-speech (optional)
+SpeechRecognition  # For voice commands (optional)
