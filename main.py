@@ -1,36 +1,49 @@
 import cv2
-from data.src.camera import start_camera, capture_frame, release_camera
-from data.src.detect import load_model, detect_people
+from ultralytics import YOLO
 
-# Paths to models and labels
-MODEL_PATH = "data/models/yolov3.weights"
-CONFIG_PATH = "data/models/yolov3.cfg"
-LABELS_PATH = "data/models/coco.names"
+# Load YOLOv8 model
+MODEL_PATH = "yolov8n.pt"  # Use pre-trained YOLOv8 weights
+model = YOLO(MODEL_PATH)
 
 def main():
-    net, labels = load_model(MODEL_PATH, CONFIG_PATH, LABELS_PATH)
-    cap, success = start_camera()
-    if not success:
+    cap = cv2.VideoCapture(0)  # Start the camera (use index 0 for default camera)
+    if not cap.isOpened():
+        print("Error: Camera not accessible.")
         return
-    
+
     while True:
-        frame = capture_frame(cap)
-        if frame is None:
+        ret, frame = cap.read()
+        if not ret:
+            print("Error: Unable to read frame.")
             break
-        
-        detections = detect_people(frame, net, labels)
-        
-        # Draw detections
-        for (x, y, w, h, conf) in detections:
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            text = f"Person: {conf:.2f}"
-            cv2.putText(frame, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
+
+        # Use YOLOv8 for person detection
+        results = model(frame)
+
+        # Parse and draw detections on the frame
+        for result in results[0].boxes:
+            xyxy = result.xyxy[0].numpy().astype(int)  # Bounding box coordinates
+            conf = result.conf[0].item()  # Confidence
+            label = result.cls[0]  # Class index
+
+            if int(label) == 0:  # Class 0 corresponds to 'person' in COCO
+                x1, y1, x2, y2 = xyxy
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                text = f"Person: {conf:.2f}"
+                cv2.putText(frame, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        # Display the frame
         cv2.imshow("Camera", frame)
+        cv2.imwrite("frame.jpg", frame)
+        print("Frame saved!")
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-    
-    release_camera(cap)
+
+        
+
+    # Release the camera and close OpenCV windows
+    cap.release()
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()
